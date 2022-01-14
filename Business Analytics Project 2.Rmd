@@ -1,0 +1,491 @@
+---
+title: "Business Analytics Project 2"
+author: "Group 2"
+output:
+  rmdformats::readthedown:
+    self_contained: TRUE
+    thumbnails: TRUE
+    lightbox: TRUE
+    gallery: FALSE
+    highlight: tango
+    css: custom1.css
+---
+
+# In this project we will be using a dataset from the United States Environmental Protection Agency. (Background)
+
+- The United States Environmental Protection Agency is responsible for providing the fuel economy data that is used on the fuel economy label on all new cars. After loading the data, we will play the role of a business analyst at a major automotive manufacturer, then we will conduct exploratory analysis, data mining, and we will apply machine learning techniques to come with some insights on the data.
+
+
+```{r setup, include=FALSE}
+library(knitr)
+library(rmdformats)
+library(tidyverse)
+library(tidyr)
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(cluster)
+library(factoextra)
+library(forecast)
+library(ggcorrplot)
+library(reshape2)
+library(DT)
+library(tidymodels)
+library(caret)
+library(plotly)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(scales)
+library(lubridate)
+library(forcats)
+library(modelr)
+library(broom)
+options(scipen = 999)
+
+
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=TRUE,
+	             cache=TRUE,
+               prompt=TRUE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
+
+
+```
+
+
+
+
+
+# Part 1 - Getting to Know our Data
+## Loading our Data
+```{r}
+
+database <- read.csv("database.csv")
+
+
+# In this project we will be using a dataset from the United States Environmental Protection Agency. (Background)
+
+database_model <- database %>%
+  drop_na()
+
+# Using this we can drop instances in the data set where a value is NA in order to work with it more easily.
+
+```
+
+- The United States Environmental Protection Agency is responsible for providing the fuel economy data that is used on the fuel economy label on all new cars. After loading the data, we will play the role of a business analyst at a major automotive manufacturer, then we will conduct exploratory analysis, data mining, and we will apply machine learning techniques to come with some insights on the data.
+
+
+## What vehicle class does best when it comes to fuel efficiency?
+
+- Now that we have loaded our data we can start exploring it to answer common questions we might have. Let's see what are the best vehicles to own based on highway MPG. 
+```{r}
+
+top_4_class_chart <- database %>%
+  mutate(Class = fct_infreq(Class)) %>%  # order 
+  group_by(Class) %>%
+  summarise(mean_Highway_MPG = mean(`Highway.MPG..FT1.`)) %>% # Mean
+  head(4) %>% # top
+  ggplot(aes(x = Class, y = mean_Highway_MPG)) +
+  geom_col(fill = "orange", color = "black") +
+  theme(panel.grid.major = element_line(colour = "red3",
+    size = 0.3), panel.grid.minor = element_line(colour = "orangered2",
+    linetype = "blank"), panel.background = element_rect(fill = "white"), # Theme
+    plot.background = element_rect(fill = "antiquewhite")) +labs(title = "Top 4 Best Vehicles by Class on Highwaw MPG",
+    y = "Avg. Highway MPG", subtitle = "This chart shows the top class of vehicles to own for the best Highway MPG")
+
+ggplotly(top_4_class_chart)
+  
+```
+
+
+- As expected, we can see compact cars have the best highway MPG followed by subcompact cars. Compact cars' average highway MPG surpass 20 with ease when cars like pickup trucks don't do as well when trying to save on gas. It is safe to say that we are getting closer to our search of what car to buy.
+
+
+## Comparison of fuel types and how this affects MPG
+
+- To better understand what car we are looking for, let's see what type of fuel do cars that are fuel efficient consume.
+
+```{r}
+
+top_4_classes <- database %>%  # storing in an object so we can use ggplotly 
+  select(`Fuel.Type.1`, `Highway.MPG..FT1.`, `City.MPG..FT1.`) %>%
+  filter(`Highway.MPG..FT1.` >= 28) %>%  # filtering so that mpg is greater than 28
+  arrange(desc(`Highway.MPG..FT1.`)) %>%
+  ggplot(aes(x = `City.MPG..FT1.`,y = `Highway.MPG..FT1.`, fill = `Fuel.Type.1`)) +
+  geom_point() +
+  theme(panel.grid.major = element_line(colour = "red3",
+    size = 0.3), panel.grid.minor = element_line(colour = "orangered2",
+    linetype = "blank"), panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "antiquewhite")) +labs(title = "Best Type of Fuel for Highway and City", x = "City MPG",
+    y = "Highway MPG", subtitle = "This chart shows the best type of fuel to use in order to have a higher MPG in the city and highway") 
+
+
+ggplotly(top_4_classes)
+
+```
+
+
+- Again, not a surprise that electric cars dominate on fuel efficiency. Their capabilities of getting from point A to point B are greater than other types of fuel. This chart allows us to narrow our search and see what electric cars have to offer. 
+
+## Exploring Electric Companies 
+
+- Now that we know electric cars do better in terms of performance, we can ask the question who are the top electric car suppliers.
+
+```{r}
+top_electric_brands <- database %>% # making a table with information needed 
+  filter(`Fuel.Type.1` == "Electricity") %>%
+  mutate(Make = fct_rev(fct_infreq(Make))) %>%
+  select(Make, `Fuel.Type.1`)
+  
+
+
+top_electric_brands %>%
+ filter(!(Make %in% c("Plymouth", "MINI", "Scion"))) %>% # removing makes
+ ggplot() +
+ aes(x = Make) +
+ geom_bar(fill = "#D9C80D", color = "black") +
+ coord_flip() +
+  theme(panel.grid.major = element_line(colour = "red3",      # Theme 
+    size = 0.3), panel.grid.minor = element_line(colour = "orangered2",
+    linetype = "blank"), panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "antiquewhite")) +labs(title = "Most Popular Electric Car Providers", x = "Company",
+    y = "Count", subtitle = "This chart shows the most popular electric car providers according to our data") 
+
+```
+
+
+- According to our dataset the most popular electric car supplier is Tesla, with more than 40 instances were individuals own Teslas. It is surprising to see Ford up there because it is not as advertised, but they did just come out with an electric SUV so that might be why they are doing well. With this being said the right direction might be to go with Tesla.
+
+## Best electric car? 
+
+Even though Tesla is the most popular electric supplier, let's see what is the best electric car based on performance. 
+
+```{r}
+database %>%
+  filter(`Fuel.Type.1` == "Electricity") %>% # filter so electricity is only displayed 
+  filter(`Highway.MPG..FT1.` >= 100) %>%
+  mutate(Make = fct_reorder(Make, `Highway.MPG..FT1.`, .desc = TRUE)) %>% # order of graph 
+  ggplot(aes(x = Make, y = `Highway.MPG..FT1.`)) +
+  geom_col(fill = "#D9C80D", color = "black", position = "dodge") +
+  theme(panel.grid.major = element_line(colour = "red3", # Theme 
+    size = 0.3), panel.grid.minor = element_line(colour = "orangered2",
+    linetype = "blank"), panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "antiquewhite")) +labs(title = "Best Electric Car to own", x = "Company",
+    y = "Highway MPG", subtitle = "This chart shows the best electric car to own based on the highway miles per charge") 
+
+```
+
+
+- Now Hyundai is the best electric car to buy with over 110 mpg. Now it is followed by Nissan and BMW. We are getting closer and closer to the best car in regards to performance. We also can see that cars that were leading in electric cars are not displayed here which is interesting. Companies like Toyota with the Prius, but we can still see best companies that provide electric cars.  
+
+
+## Best Electric Model
+
+```{r}
+best_model_electric <- database %>%
+  filter(`Fuel.Type.1` == "Electricity") %>%
+  mutate(Model = fct_infreq(Model)) %>%
+  group_by(`Highway.MPG..FT1.`) %>%
+  head(6) %>%
+  ggplot(aes(x = Model, y = `Highway.MPG..FT1.`, show = Make)) +
+  geom_col(fill = "#D9C80D", color = "black", position = "dodge") +
+  theme(panel.grid.major = element_line(colour = "red3",
+    size = 0.3), panel.grid.minor = element_line(colour = "orangered2",
+    linetype = "blank"), panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "antiquewhite")) +labs(title = "Best Electric Car to own", x = "Model",
+    y = "Highway MPG") 
+
+ggplotly(best_model_electric)
+
+```
+
+
+- Interesting according to the graph the best models when it comes to Highway MPG are Chevrolet and Ford. Good thing we explored our data and figured this out because it looked for a moment that Tesla was the option we were going for, but once we see this chart we can conclude that Ford is also in the running and that their SUV is doing very well in the real world. The SUV does 54 MPG which is very good and the S10 Electric does a whooping 58 MPG. Two solid choices if you ask me. 
+
+## Best Regular Car Providers 
+
+Say we are not ready for an electric car and we want to stick with a regular car. Thats fine! We can also come up with insights on that.
+
+```{r}
+database %>%
+  filter(`Fuel.Type.1` == "Regular Gasoline") %>%
+  group_by(`Highway.MPG..FT1.`) %>%
+  head(10) %>%
+  ggplot(aes(x = Make, y = `Highway.MPG..FT1.`)) +
+  geom_col(fill = "#9619A4", color = "black", position = "dodge") +
+  theme(panel.grid.major = element_line(colour = "red3",
+    size = 0.3), panel.grid.minor = element_line(colour = "orangered2",
+    linetype = "blank"), panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "antiquewhite")) +labs(title = "Best Regular Car Provider", x = "Company",
+    y = "Highway MPG", subtitle = "This chart shows the best regular car provider based on the highway miles per charge") 
+
+```
+
+
+- According to our dataset, Alfa Romeo is the top regular car provider when it comes to the car performance in highway MPG. It is followed by AM General with just over 15 MPG which is not very good. This shows how electric cars tend to do better on their performance and the best regular car reaches 25 mpg which is good for a regular car. 
+
+## Best 5 Regular Model 
+
+```{r}
+best_model_regular <- database %>%
+  filter(`Fuel.Type.1` == "Regular Gasoline") %>%
+  filter(`Highway.MPG..FT1.` <= 50) %>%
+  mutate(Model = fct_reorder(Model, `Highway.MPG..FT1.`, .desc = TRUE)) %>%
+  group_by(Model) %>%
+  head(10) %>%
+  ggplot(aes(x = Model, y = `Highway.MPG..FT1.`, show = Make, fill = Make)) +
+  geom_col(color = "black", position = "dodge") +
+  theme(panel.grid.major = element_line(colour = "red3",
+    size = 0.3), panel.grid.minor = element_line(colour = "orangered2",
+    linetype = "blank"), panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "antiquewhite")) +labs(title = "Best 5 Regular Car to own", x = "Model",
+    y = "Highway MPG") 
+
+ggplotly(best_model_regular)
+
+```
+
+
+- Wow! The winner for best performance regular model is the Spider Veloce 2000 and GT V6 2.5 both by Alfa Romeo. The model they have goes a whopping 25 miles per gallon and is scoring as the top model and the second best 24. It is safe to say that Alfa Romeo has 2 great models that won't disappoint when it comes to fuel efficiency and performance at a cost. 
+
+
+
+# Part 2 - Model Construction - Splitting the Data
+```{r}
+# Split the data
+
+set.seed(1)
+
+split <- initial_split(database_model, prop = 0.6)
+
+training_data <- training(split)
+
+validation_data <- testing(split)
+
+```
+
+## Correaltion Matrix - City Mpg
+```{r}
+# A correlation matrix will allow us to see any significant correlations in our data so we will be making one
+
+# In order to make a correlation matrix we must have only numeric columns so we will be selecting the columns that contain numbers.
+
+database_city_cor <- database_model %>%
+  select(City.MPG..FT1., Engine.Cylinders, Engine.Displacement, Annual.Fuel.Cost..FT1.) %>%
+  drop_na()
+
+# Making a correlation matrix for city_mpg 
+
+cor_matrix_mpg <- (cor(database_city_cor)) 
+melt_mpg_cor <- melt(cor(cor_matrix_mpg))
+head(melt_mpg_cor)
+
+ggcorrplot(cor(database_city_cor), p.mat = cor_pmat(database_city_cor), hc.order = TRUE, type = 'lower')
+
+
+```
+
+
+- This correlation matrix allows us to see if city mpg is highly correlated with the amount of engine cylinders, engine displacement, and the annual fuel cost. It seems that the mpg does not have a strong correlation with these variables.
+
+
+## Model 1 - Predicting City MPG for a Vehicle
+```{r}
+training_model <- lm(City.MPG..FT1. ~ Engine.Cylinders + Engine.Displacement + Fuel.Type + Year, data = training_data)
+
+options(scipen = 999)
+
+summary(training_model)
+
+```
+
+
+- Looking at the summary of the training model we can see that Engine Cylinders, Fuel Type, and Year are all significant when looking at city mpg. The variable that was not significant was engine displacement.
+
+
+## Training Model- Residuals
+```{r}
+ggplot(data = training_model) +
+  aes(x = training_model$residuals) +
+  geom_histogram(bins = 20)
+
+```
+
+
+- The model was fairly accurate in predicting city mpg using the training data since it had the highest count at 0 residuals which means that it did not over predict or underpredict those prediction. It had a higher to tendency to over predict as evidenced by the higher amount of negative residuals.
+
+## Using our Model on Validation Data - City Mpg
+```{r}
+
+testing_predictions <- predict(training_model, newdata = validation_data)
+
+testing_residuals <- data.frame(validation_data$City.MPG..FT1., testing_predictions, residuals = validation_data$City.MPG..FT1. - testing_predictions)
+
+view(testing_residuals)
+
+testing_residuals %>%
+  ggplot(aes(x = residuals)) +
+  geom_histogram()
+
+```
+
+
+- Findings - We used the model on to make predictions using the validation data which the model has never seen. Looking at the residuals we can see that it had the highest count at 0 which means it did not under predict or over predict city mpg. it still did have a large amount of responses that were under predicted and over predicted as seen by the counts to the left and right of 0.
+
+
+## Making a Similar Correlation Matrix for Highway_Mpg
+```{r}
+
+database_highway_cor <- database_model %>%
+  select(Highway.MPG..FT1., Engine.Cylinders, Engine.Displacement, Annual.Fuel.Cost..FT1.) %>%
+  drop_na()
+
+cor_matrix_mpg2 <- (cor(database_highway_cor))
+melt_mpg_cor2 <- melt(cor(cor_matrix_mpg2)) 
+head(melt_mpg_cor2)
+
+ggcorrplot(cor(database_highway_cor), p.mat = cor_pmat(database_highway_cor), hc.order = TRUE, type = 'lower')
+
+```
+
+
+- The correlation matrix used the same variables and produced basically the same results. Highway mpg does not seem to have a high correlation with the variables we picked.
+
+
+## Model 2 -Predicting Highway MPG for a Vehicle
+```{r}
+training_model2 <- lm(Highway.MPG..FT1. ~ Engine.Cylinders + Fuel.Type + Year + Drive, data = training_data)
+
+options(scipen = 999)
+
+summary(training_model2)
+
+ggplot(data = training_model2) +
+  aes(x = training_model2$residuals) +
+  geom_histogram(bins = 20)
+
+```
+
+
+- The model does a fairly decent job but the majority of the responses are to the left and right of zero. That means the model is overpredicting (negative residuals) and underpredicting (positive residuals).
+
+
+## Using our Model on Validation Data - Highway Mpg
+```{r}
+
+testing_predictions2 <- predict(training_model2, newdata = validation_data)
+
+testing_residuals2 <- data.frame(validation_data$Highway.MPG..FT1., testing_predictions2, residuals = validation_data$Highway.MPG..FT1. - testing_predictions2)
+
+view(testing_residuals2)
+
+testing_residuals2 %>%
+  ggplot(aes(x = residuals)) +
+  geom_histogram()
+
+```
+
+
+- Findings- The model was used on data it had not seen before and using what it had learned about the first data set the model was used to predict the expected mpg of a vehicle. The results show that the model had a tendency to over predict since there is a larger amount of responses that were a negative number, the highest count was 200 slightly to the left of 0 which means that it was overpredicting the expected highway mpg. There is a section that is an extreme outlier that seems to skew the graph a bit but it is still clear to see that overall the model tends to over predict expected highway mpg.
+
+# Part 3 - Develop a Model that can be Used to Determine a Class of Vehicle
+```{r}
+# Cleaning the dataset
+database_tree <- database_model %>%
+  filter(Make == "Ford") %>%
+  mutate(Class = ifelse(Class == "Midsize Cars", "Midsize Cars", "Not a Midsize Car")) %>%
+  mutate(Class = as.factor(Class))
+
+```
+
+
+- This only shows us cars that are made by ford and the if they are a midsize car they will be classified as one, but if they arent it will return "Not a midsize car. This makes the decsion tree a yes or no question, yes it is a midsize or no it is not.
+
+
+## Selecting Specific Columns We Want to Use
+```{r}
+
+database_tree <- database_tree %>%
+  select(Highway.MPG..FT1., Engine.Cylinders, Engine.Displacement, Combined.MPG..FT1., Class, Make) %>%
+  drop_na()
+```
+
+## Splitting the Data
+```{r}
+
+split <- initial_split(database_tree, prop = 0.6)
+split
+
+training_data_tree <- training(split)
+validation_data_tree <- testing(split)
+
+```
+
+## Making the Decision Tree to Predict Class of Ford Vehicle
+```{r}
+
+
+set.seed(1)
+
+class_tree <- rpart(Class ~ Highway.MPG..FT1. + Engine.Cylinders + Engine.Displacement, data = training_data_tree, parms = list(split = "gini"), method = "class", control = rpart.control(cp = 0, minsplit = 1, minbucket = 1))
+
+prp(class_tree)
+
+```
+
+
+- This decision tree shows uses highway mpg, engine cylinders, and engine displacement to predict whether a car is classified as a mid-sized car or if it is not classified as a midsize car. The tree starts by looking at highway mpg and then splits if a car is above 31 highway mpg (left side) or below 31 highway mpg (right side). It also checks if a car is above or below a ceratin amount of engine displacement or cylinders and then predicts whether it is a midsizr car or not.
+
+
+## Confusion Matrix
+```{r}
+
+
+prediction_test <- predict(class_tree, newdata = training_data_tree, type = "class")
+prediction_test1 <- predict(class_tree, newdata = validation_data_tree, type = "class")
+
+View(as.data.frame(prediction_test))
+
+confusionMatrix(prediction_test, as.factor(training_data_tree$Class))
+
+```
+
+
+- The accuracy of our model was 96%, and the no information rate is 87% which means that if a person guessed if a car is a midsize car they would be correct 87% of the time. Sensitivity is the true positive rate which is the amount of correct predictions our model made when predicting if a car is midsize. The sensitivity is lower than the no information rate which means that our model is worse at predicting if a car is midsize or not than someone who is just guessing. Specificity is 98% which means our model is correctly predicting if a vehicle is not a mid-size car but since the majority of ford vehicles are not mid size this doesn't tell us much.
+
+
+## Viewing our Validation Data Predictions
+```{r}
+
+confusionMatrix(prediction_test1, as.factor(validation_data_tree$Class))
+
+```
+
+
+- The model preformed worse on the validation data than on the training data. Accuracy fell to 89% the no information rate was 88% rounded. Sensitivity or our true positive rate was 87.5% which is worse than the no information rate. Our specificity stayed roughly the same at 98% which means that the model did not predict if a car was midsize or not better than someone who was guessing, as a result the model would most likely be considered not significant.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
