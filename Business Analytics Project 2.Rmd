@@ -1,6 +1,6 @@
 ---
 title: "Business Analytics Project 2"
-author: "Group 2"
+author: "Jose F."
 output:
   rmdformats::readthedown:
     self_contained: TRUE
@@ -8,7 +8,7 @@ output:
     lightbox: TRUE
     gallery: FALSE
     highlight: tango
-    css: custom1.css
+    css: custom1.css  # make sure the css file is in your working directory and place the name of the file here.
 ---
 
 # In this project we will be using a dataset from the United States Environmental Protection Agency. (Background)
@@ -189,7 +189,7 @@ database %>%
 ## Best Electric Model
 
 ```{r}
-best_model_electric <- database %>%
+database %>%
   filter(`Fuel.Type.1` == "Electricity") %>%
   mutate(Model = fct_infreq(Model)) %>%
   group_by(`Highway.MPG..FT1.`) %>%
@@ -202,7 +202,7 @@ best_model_electric <- database %>%
     plot.background = element_rect(fill = "antiquewhite")) +labs(title = "Best Electric Car to own", x = "Model",
     y = "Highway MPG") 
 
-ggplotly(best_model_electric)
+
 
 ```
 
